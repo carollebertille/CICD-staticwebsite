@@ -73,7 +73,7 @@ jobs:
       - name: Login and Push Image on docker hub
         run: |
           docker load < $IMAGE_NAME
-          echo ${} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+          echo ${{{ secrets.DOCKERHUB_PASSWORD }}} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME:$IMAGE_TAG          
         
   deploy:
