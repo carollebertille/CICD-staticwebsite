@@ -52,7 +52,7 @@ jobs:
           sleep 5
 
       - name: Test image.
-        run: curl http://localhost:${EXPOSED_PORT} | grep -i "Dimension"
+        run: curl "http://docker:${CONTAINER_PORT}" | grep -i "Dimension"
 
       - name: Clean Container
         run: |
