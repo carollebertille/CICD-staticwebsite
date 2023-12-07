@@ -1,0 +1,117 @@
+/* import shared library. */
+@Library('softech-share-library')_
+
+pipeline {
+    environment {
+        IMAGE_NAME = "website"
+        CONTAINER_PORT = "80"
+        EXPOSED_PORT = "80"
+        STAGING = "softech-staging"
+        PRODUCTION = "softech-prod"
+        DOCKERHUB_ID = "edennolan2021"
+        DOCKERHUB = credentials('dockerhub')
+    }
+    agent none
+    stages {
+       stage('Build image') {
+           agent any
+           steps {
+              script {
+                sh 'docker build -t ${DOCKERHUB_ID}/$IMAGE_NAME:${BUILD_NUMBER} .'
+              }
+           }
+       }
+       stage('Run container based on builded image') {
+          agent any
+          steps {
+            script {
+              sh '''
+                  echo "Cleaning existing container if exist"
+                  docker ps -a | grep -i $IMAGE_NAME && docker rm -f $IMAGE_NAME
+                  docker run --name $IMAGE_NAME -d -p $EXPOSED_PORT:$CONTAINER_PORT -e PORT=$CONTAINER_PORT ${DOCKERHUB_ID}/$IMAGE_NAME:${BUILD_NUMBER}
+                  sleep 5
+              '''
+             }
+          }
+       }
+       stage('Test image') {
+           agent any
+           steps {
+              script {
+                sh '''
+                    curl http://localhost | grep -q "Dimension"
+                '''
+              }
+           }
+      }
+       stage('Clean container') {
+          agent any
+          steps {
+             script {
+               sh '''
+                   docker stop $IMAGE_NAME
+                   docker rm $IMAGE_NAME
+               '''
+             }
+          }
+      }
+
+      stage ('Login and Push Image on docker hub') {
+          agent any
+          steps {
+             script {
+               sh '''
+                   echo $DOCKERHUB | docker login -u $DOCKERHUB_ID --password-stdin
+                   docker push ${DOCKERHUB_ID}/$IMAGE_NAME:${BUILD_NUMBER}
+               '''
+             }
+          }
+      }
+
+      stage('Push image in staging and deploy it') {
+        when {
+            expression { GIT_BRANCH == 'origin/main' }
+        }
+	agent any 
+        environment {
+            HEROKU_API_KEY = credentials('heroku_api_key')
+        }
+        steps {
+           script {
+             sh '''
+                heroku container:login
+                heroku create $STAGING || echo "projets already exist"
+                heroku container:push -a $STAGING web
+                heroku container:release -a $STAGING web
+             '''
+           }
+        }
+     }
+     stage('Push image in production and deploy it') {
+       when {
+           expression { GIT_BRANCH == 'origin/main' }
+       }
+	agent any
+       environment {
+           HEROKU_API_KEY = credentials('heroku_api_key')
+       }
+       steps {
+          script {
+            sh '''
+               heroku container:login
+               heroku create $PRODUCTION || echo "projets already exist"
+               heroku container:push -a $PRODUCTION web
+               heroku container:release -a $PRODUCTION web
+            '''
+          }
+       }
+     }
+  }
+  post {
+     always {
+       script {
+         slackNotifier currentBuild.result
+     }
+    }
+  }
+}
