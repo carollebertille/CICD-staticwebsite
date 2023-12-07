@@ -9,7 +9,8 @@ name: website
 #  schedule:
 #    - cron: "0 2 * * *"
 env:
-  DOCKERHUB_ID: "edennolan2021"
+  HEROKU_APP_STG: "softech-staging"
+  HEROKU_APP_PROD: "softech-prod"
   IMAGE_NAME: "website"
   IMAGE_TAG: "latest"
   CONTAINER_PORT: "80"
@@ -25,8 +26,8 @@ jobs:
 
       - name: Build Image
         run: | 
-          docker build -t ${DOCKERHUB_ID}/$IMAGE_NAME:$IMAGE_TAG .
-          docker save ${DOCKERHUB_ID}/$IMAGE_NAME:$IMAGE_TAG > $IMAGE_NAME
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME:$IMAGE_TAG .
+          docker save ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME:$IMAGE_TAG > $IMAGE_NAME
           echo "IMAGE_NAME=website" >> $GITHUB_ENV
       - name: Cache artefact
         uses: actions/cache@v3
@@ -48,11 +49,11 @@ jobs:
       - name: Run container based on builded image
         run: |
           docker load < $IMAGE_NAME
-          docker run --name $IMAGE_NAME -d -p ${EXPOSED_PORT}:${CONTAINER_PORT} -e PORT=$APP_CONTAINER_PORT ${DOCKERHUB_ID}/$IMAGE_NAME:$IMAGE_TAG
+          docker run --name $IMAGE_NAME -d -p ${EXPOSED_PORT}:${CONTAINER_PORT} -e PORT=$CONTAINER_PORT ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME:$IMAGE_TAG
           sleep 5
 
       - name: Test image.
-        run: curl http://172.17.0.1:${EXPOSED_PORT} | grep -i "Dimension"
+        run: curl http://localhost:${EXPOSED_PORT} | grep -i "Dimension"
 
       - name: Clean Container
         run: |
@@ -72,8 +73,8 @@ jobs:
       - name: Login and Push Image on docker hub
         run: |
           docker load < $IMAGE_NAME
-          echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u $DOCKERHUB_ID --password-stdin
-          docker push ${DOCKERHUB_ID}/$IMAGE_NAME:$IMAGE_TAG          
+          echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME:$IMAGE_TAG          
         
   deploy:
     name: DEPLOY APPLICATION
@@ -85,8 +86,8 @@ jobs:
       - name: Install and configure Heroku CLI
         run: | 
           sudo apt install nodejs
-          echo "STAGING=${DOCKERHUB_ID}-staging" >> $GITHUB_ENV
-          echo "PRODUCTION=${DOCKERHUB_ID}-production" >> $GITHUB_ENV
+          echo "STAGING=${HEROKU_APP_STG}-staging" >> $GITHUB_ENV
+          echo "PRODUCTION=${HEROKU_APP_PROD}-production" >> $GITHUB_ENV
       
       - name: Deploy Staging
         env:
