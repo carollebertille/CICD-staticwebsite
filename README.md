@@ -5,4 +5,3 @@
 
 
 
-Source code : https://github.com/diranetafen/static-website-example
